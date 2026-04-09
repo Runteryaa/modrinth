@@ -11,12 +11,18 @@ export type Project = { title: string; actualProjectType?: string }
 
 export type RawFile = File | (Blob & { name: string })
 
+export interface InferredDependency {
+	id: string
+	dependency_type: 'required' | 'optional'
+}
+
 export interface InferredVersionInfo {
 	name?: string
 	version_number?: string
 	version_type?: 'alpha' | 'beta' | 'release'
 	loaders?: string[]
 	game_versions?: string[]
+	dependencies?: InferredDependency[]
 }
 
 /**
