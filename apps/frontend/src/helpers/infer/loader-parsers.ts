@@ -115,6 +115,7 @@ export function createLoaderParsers(
 			}
 		},
 		// Fabric
+		// Fabric
 		'fabric.mod.json': (file: string): InferredVersionInfo => {
 			const metadata = JSON.parse(file) as any
 
@@ -132,17 +133,48 @@ export function createLoaderParsers(
 			if (hasLegacyVersions) loaders.push('legacy-fabric')
 			else loaders.push('fabric')
 
+			const dependencies: InferredDependency[] = []
+			const ignoredMods = ['minecraft', 'java', 'fabricloader', 'fabric', 'fabric-resource-loader-v0']
+
+			if (metadata.depends) {
+				for (const id of Object.keys(metadata.depends)) {
+					if (!ignoredMods.includes(id)) dependencies.push({ id, dependency_type: 'required' })
+				}
+			}
+			if (metadata.recommends) {
+				for (const id of Object.keys(metadata.recommends)) {
+					if (!ignoredMods.includes(id)) dependencies.push({ id, dependency_type: 'optional' })
+				}
+			}
+
 			return {
 				name: `${project.title} ${metadata.version}`,
 				version_number: metadata.version,
 				loaders,
 				version_type: versionType(metadata.version),
 				game_versions: detectedGameVersions,
+				dependencies,
 			}
 		},
 		// Quilt
 		'quilt.mod.json': (file: string): InferredVersionInfo => {
 			const metadata = JSON.parse(file) as any
+
+			// YENİ EKLENEN KISIM: Bağımlılıkları Çıkart
+			const dependencies: InferredDependency[] = []
+			const ignoredMods = ['minecraft', 'java', 'quilt_loader', 'quilt_resource_loader']
+
+			if (metadata.quilt_loader?.depends) {
+				for (const dep of metadata.quilt_loader.depends) {
+					// Quilt bağımlılıkları obje veya string olabilir
+					const id = typeof dep === 'string' ? dep : dep.id
+					const isOptional = typeof dep === 'object' && dep.optional === true
+
+					if (id && !ignoredMods.includes(id)) {
+						dependencies.push({ id, dependency_type: isOptional ? 'optional' : 'required' })
+					}
+				}
+			}
 
 			return {
 				name: `${project.title} ${metadata.quilt_loader.version}`,
@@ -157,6 +189,7 @@ export function createLoaderParsers(
 							simplifiedGameVersions,
 						)
 					: [],
+				dependencies, // YENİ EKLENDİ
 			}
 		},
 		// Bukkit + Other Forks
