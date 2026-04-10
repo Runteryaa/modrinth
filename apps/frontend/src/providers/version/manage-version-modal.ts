@@ -498,12 +498,49 @@ export function createManageVersionContext(
 		if (!primaryFileData) return
 
 		try {
+			// 1. AŞAMA: Dosyadan verileri çıkart (Daha önce yaptığımız parser çalışır)
 			const inferredData = await setInferredVersionData(primaryFileData, projectV2.value)
+			
 			const mappedInferredData: Partial<Labrinth.Versions.v3.DraftVersion> = {
 				...inferredData,
 				name: inferredData.name || '',
 			}
 
+			// --- 3. AŞAMA BAŞLANGICI: BAĞIMLILIKLARI PROJEYE DÖNÜŞTÜRME ---
+			// Parser'dan gelen dependencies dizisi varsa (örn: [{id: 'respackopts', dependency_type: 'optional'}])
+			if (inferredData.dependencies && inferredData.dependencies.length > 0) {
+				// Her bir bağımlılık için Modrinth API'sini sorgula
+				const resolutionPromises = inferredData.dependencies.map(async (dep) => {
+					try {
+						const proj = await labrinth.projects_v3.get(dep.id)
+						
+						return {
+							project_id: proj.id,
+							dependency_type: dep.dependency_type as any,
+							name: proj.name,
+							icon: proj.icon_url,
+						}
+					} catch (e) {
+						console.warn(`Dependency slug "${dep.id}" could not be resolved to a Modrinth project.`)
+						return null
+					}
+				})
+
+				const resolvedDependencies = (await Promise.all(resolutionPromises)).filter(
+					(dep): dep is SuggestedDependency => dep !== null
+				)
+
+				if (resolvedDependencies.length > 0) {
+					if (!suggestedDependencies.value) {
+						suggestedDependencies.value = []
+					}
+					
+					suggestedDependencies.value = [
+						...suggestedDependencies.value,
+						...resolvedDependencies
+					]
+				}
+			}
 			draftVersion.value = {
 				...draftVersion.value,
 				...mappedInferredData,
