@@ -2,7 +2,7 @@ import { parse as parseTOML } from '@ltd/j-toml'
 import yaml from 'js-yaml'
 import type JSZip from 'jszip'
 
-import type { GameVersion, InferredVersionInfo, Project } from './infer'
+import type { GameVersion, InferredVersionInfo, InferredDependency, Project } from './infer'
 import {
 	getGameVersionsMatchingMavenRange,
 	getGameVersionsMatchingSemverRange,
@@ -51,12 +51,27 @@ export function createLoaderParsers(
 				}
 			}
 
+			const dependencies: InferredDependency[] = []
+			const ignoredMods = ['minecraft', 'java', 'neoforge']
+
+			if (metadata.dependencies) {
+				Object.values(metadata.dependencies).flat().forEach((dep: any) => {
+					if (dep.modId && !ignoredMods.includes(dep.modId)) {
+						dependencies.push({ 
+							id: dep.modId, 
+							dependency_type: dep.mandatory === false ? 'optional' : 'required' 
+						})
+					}
+				})
+			}
+
 			return {
 				name: versionNum ? `${project.title} ${versionNum}` : '',
 				version_number: versionNum,
 				loaders: ['neoforge'],
 				version_type: versionType(versionNum),
 				game_versions: newGameVersions,
+				dependencies,
 			}
 		},
 		// Forge 1.13+
@@ -78,7 +93,7 @@ export function createLoaderParsers(
 				}
 
 				let newGameVersions: string[] = []
-				const mcDependencies = Object.values(metadata.dependencies)
+				const mcDependencies = Object.values(metadata.dependencies || {})
 					.flat()
 					.filter((dependency: any) => dependency.modId === 'minecraft')
 
@@ -89,12 +104,27 @@ export function createLoaderParsers(
 					)
 				}
 
+				const dependencies: InferredDependency[] = []
+				const ignoredMods = ['minecraft', 'java', 'forge']
+
+				if (metadata.dependencies) {
+					Object.values(metadata.dependencies).flat().forEach((dep: any) => {
+						if (dep.modId && !ignoredMods.includes(dep.modId)) {
+							dependencies.push({ 
+								id: dep.modId, 
+								dependency_type: dep.mandatory === false ? 'optional' : 'required' 
+							})
+						}
+					})
+				}
+
 				return {
 					name: `${project.title} ${versionNum}`,
 					version_number: versionNum,
 					version_type: versionType(versionNum),
 					loaders: ['forge'],
 					game_versions: newGameVersions,
+					dependencies,
 				}
 			} else {
 				return {}
@@ -114,7 +144,6 @@ export function createLoaderParsers(
 				),
 			}
 		},
-		// Fabric
 		// Fabric
 		'fabric.mod.json': (file: string): InferredVersionInfo => {
 			const metadata = JSON.parse(file) as any
@@ -160,13 +189,11 @@ export function createLoaderParsers(
 		'quilt.mod.json': (file: string): InferredVersionInfo => {
 			const metadata = JSON.parse(file) as any
 
-			// YENİ EKLENEN KISIM: Bağımlılıkları Çıkart
 			const dependencies: InferredDependency[] = []
 			const ignoredMods = ['minecraft', 'java', 'quilt_loader', 'quilt_resource_loader']
 
 			if (metadata.quilt_loader?.depends) {
 				for (const dep of metadata.quilt_loader.depends) {
-					// Quilt bağımlılıkları obje veya string olabilir
 					const id = typeof dep === 'string' ? dep : dep.id
 					const isOptional = typeof dep === 'object' && dep.optional === true
 
@@ -189,7 +216,7 @@ export function createLoaderParsers(
 							simplifiedGameVersions,
 						)
 					: [],
-				dependencies, // YENİ EKLENDİ
+				dependencies,
 			}
 		},
 		// Bukkit + Other Forks
